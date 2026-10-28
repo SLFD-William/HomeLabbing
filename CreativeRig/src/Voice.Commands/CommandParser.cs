@@ -162,7 +162,9 @@ public static partial class CommandParser
         }
 
         var launch = c.Has("launch", "start", "open", "boot", "fire", "run");
-        var close = c.Has("kill", "close", "quit", "exit", "shutdown") || c.HasPhrase("shut down");
+        // Whisper often hears "close" as cloth/clothes/clothe/clos.
+        var close = c.Has("kill", "close", "quit", "exit", "shutdown", "cloth", "clothe", "clothes", "clos", "closed", "closing")
+            || c.HasPhrase("shut down");
 
         // "start recording in OBS" and similar are not app launches.
         if (!c.Has("record", "recording", "stream", "streaming", "scene", "tempo")

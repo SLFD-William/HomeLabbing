@@ -22,6 +22,8 @@ public class MultiServerParserTests
         { "close VS Code", new CloseApp(StudioApp.VsCode) },
         { "open Visual Studio Code", new LaunchApp(StudioApp.VsCode) },
         { "close reaper", new CloseApp(StudioApp.Reaper) },
+        { "CLOTH REAPER.", new CloseApp(StudioApp.Reaper) },
+        { "clothes OBS", new CloseApp(StudioApp.Obs) },
         { "kill OBS", new CloseApp(StudioApp.Obs) },
         { "start recording in obs", new StartRecording(Target.Obs) },
         { "kill the studio", new CloseStudio() },

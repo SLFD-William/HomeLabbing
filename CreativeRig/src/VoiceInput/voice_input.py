@@ -180,7 +180,7 @@ def main():
         audio16 = audio[: len(audio) // 3 * 3].reshape(-1, 3).mean(axis=1).astype(np.float32)
         segs, _ = model.transcribe(audio16, language="en", beam_size=1, vad_filter=True,
                                    condition_on_previous_text=False, no_speech_threshold=0.5,
-                                   initial_prompt="Hey Elmer, start REAPER. Hey Elmer, set the tempo to 120 BPM.")
+                                   initial_prompt="Hey Elmer, close REAPER. Hey Elmer, open OBS. Start REAPER. Close OBS. Launch the studio. Set the tempo to 120 BPM.")
         all_segs = list(segs)
         parts = [s for s in all_segs if s.avg_logprob > -1.0 and s.no_speech_prob < 0.6]
         text = " ".join(s.text.strip() for s in parts).strip()
