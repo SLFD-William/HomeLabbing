@@ -53,6 +53,29 @@ public class VoiceSessionTests
     }
 
     [Fact]
+    public async Task Unclear_speech_while_listening_asks_to_repeat()
+    {
+        var (session, said, _) = Create();
+        await session.HandleAsync("hey elmer");
+        said.Clear();
+
+        var reply = await session.HandleAsync(VoiceSession.UnclearMarker);
+
+        Assert.Equal("LISTENING", reply);
+        Assert.Single(said);
+        Assert.Contains("again", said[0]);
+    }
+
+    [Fact]
+    public async Task Unclear_speech_when_idle_is_ignored()
+    {
+        var (session, said, _) = Create();
+
+        Assert.Equal("PASS", await session.HandleAsync(VoiceSession.UnclearMarker));
+        Assert.Empty(said);
+    }
+
+    [Fact]
     public async Task WakeWordAndCommandInOneUtterance()
     {
         var (s, said, _) = Create();

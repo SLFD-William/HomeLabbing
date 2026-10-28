@@ -187,6 +187,8 @@ def main():
         if not text:
             dropped = " ".join(s.text.strip() for s in all_segs).strip()
             print(f"dropped ({len(audio) / SAMPLE_RATE:.1f}s): {dropped!r}", flush=True)
+            if time.time() < _direct_listening_until:
+                try_direct("<unclear>")
             return
         if re.fullmatch(r"(reaper|metronome|record|[\s,.])+", text.lower()):
             return  # Whisper parroting its prompt on unclear audio

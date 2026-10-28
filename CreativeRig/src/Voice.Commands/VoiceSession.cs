@@ -40,6 +40,8 @@ public sealed class VoiceSession
         _model = model;
     }
 
+    public const string UnclearMarker = "<unclear>";
+
     private readonly List<DateTime> _modelCalls = [];
     private readonly List<string> _spoken = [];
 
@@ -67,6 +69,18 @@ public sealed class VoiceSession
         var wasListening = IsListening;
         var previousDeadline = _listeningUntil;
         _listeningUntil = null;
+
+        // The listener heard speech it couldn't transcribe while a command was expected.
+        if (transcript.Trim() == UnclearMarker)
+        {
+            if (!wasListening)
+            {
+                return "PASS";
+            }
+
+            _say("Sorry Captain, I didn't catch that. Could you say it again?");
+            return Listen();
+        }
 
         // Elmer's own speech can be picked up by the mic; never answer it or extend the window.
         if (SelfEcho.IsMatch(transcript) || MatchesRecentSpeech(transcript))
@@ -144,7 +158,8 @@ public sealed class VoiceSession
         _modelCalls.RemoveAll(t => now - t > TimeSpan.FromMinutes(1));
         if (_modelCalls.Count >= 6 || text.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length < 2)
         {
-            return "PASS";
+            _say("Sorry Captain, I didn't catch that. Could you say it again?");
+            return Listen();
         }
 
         _modelCalls.Add(now);
