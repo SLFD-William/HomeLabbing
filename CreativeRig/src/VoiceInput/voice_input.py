@@ -14,6 +14,7 @@ VOICE_MODEL (default small.en), VOICE_IDLE (seconds).
 Run with --probe to print live per-channel levels, --test to transcribe without typing.
 """
 import os
+import collections
 import re
 import sys
 import time
@@ -151,6 +152,7 @@ def main():
     last_activity = 0.0
     typed_len = 0
     buf, speech_t, silence_t, in_speech = [], 0.0, 0.0, False
+    preroll = collections.deque(maxlen=4)  # 0.4 s so a quiet first word isn't clipped
 
     from pynput.keyboard import Controller, Key
     kb = Controller()
@@ -169,9 +171,11 @@ def main():
         audio16 = audio[: len(audio) // 3 * 3].reshape(-1, 3).mean(axis=1).astype(np.float32)
         segs, _ = model.transcribe(audio16, language="en", beam_size=1, vad_filter=True,
                                    condition_on_previous_text=False, no_speech_threshold=0.5,
-                                   initial_prompt="Hey Elmer. Set the tempo to 120 BPM. Mute track 2. Switch to the main scene in OBS. Load the rig in HeadRush. REAPER, metronome, record, render.")
+                                   initial_prompt="Hey Elmer, start REAPER. Hey Elmer, set the tempo to 120 BPM.")
         parts = [s for s in segs if s.avg_logprob > -1.0 and s.no_speech_prob < 0.6]
         text = " ".join(s.text.strip() for s in parts).strip()
+        if re.fullmatch(r"(reaper|metronome|record|[\s,.])+", text.lower()):
+            return  # Whisper parroting its prompt on unclear audio
         if text.lower().strip(" .,!?") in JUNK:
             return
         print(f"heard: {text}", flush=True)
@@ -180,6 +184,7 @@ def main():
             last_activity = time.time()
             while not q.empty():  # drop audio captured while the assistant was speaking
                 q.get()
+            preroll.clear()
             return
 
         if not active:
@@ -226,9 +231,10 @@ def main():
         loud = rms > max(floor * 3.0, 0.01)
         if not in_speech:
             if loud:
-                in_speech, buf, speech_t, silence_t = True, [d], 0.1, 0.0
+                in_speech, buf, speech_t, silence_t = True, list(preroll) + [d], 0.1, 0.0
             else:
                 floor = 0.98 * floor + 0.02 * rms  # follow slow music/room level changes
+            preroll.append(d)
         else:
             buf.append(d)
             speech_t += 0.1
