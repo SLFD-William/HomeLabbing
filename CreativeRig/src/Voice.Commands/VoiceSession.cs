@@ -50,13 +50,13 @@ public sealed class VoiceSession
     private bool MatchesRecentSpeech(string transcript)
     {
         var heard = Words(transcript);
-        if (heard.Length < 3)
+        if (heard.Length < 4)
         {
             return false;
         }
 
         var said = new HashSet<string>(_spoken.SelectMany(Words));
-        return heard.Count(said.Contains) >= heard.Length * 0.7;
+        return heard.Count(said.Contains) >= heard.Length * 0.8;
     }
 
     public bool IsListening => _listeningUntil is { } until && _now() < until;
