@@ -67,7 +67,15 @@ def try_direct(text):
                                    text=True, bufsize=1)
     _direct.stdin.write(text.replace("\n", " ") + "\n")
     _direct.stdin.flush()
-    reply = _direct.stdout.readline().strip()
+    reply = ""
+    while True:  # launched apps can inherit our stdout and print noise; only accept protocol lines
+        line = _direct.stdout.readline()
+        if line == "":
+            break
+        line = line.strip()
+        if re.match(r"^(PASS|LISTENING|HANDLED|CHAT)\b", line):
+            reply = line
+            break
     print(f"direct: {reply}", flush=True)
     _direct_listening_until = time.time() + (45.0 if reply.startswith("CHAT") else DIRECT_LISTEN_SECONDS) if (reply == "LISTENING" or reply.startswith("CHAT")) else 0.0
     return reply != "PASS"

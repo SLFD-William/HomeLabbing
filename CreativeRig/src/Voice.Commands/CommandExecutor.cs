@@ -136,7 +136,7 @@ public sealed class CommandExecutor
             throw new CommandException($"I can't find {name}.");
         }
 
-        start.UseShellExecute = false;
+        start.UseShellExecute = true; // don't let the app inherit our stdout (the protocol channel)
         System.Diagnostics.Process.Start(start)?.Dispose();
         return new Outcome($"Launching {name}", $"Launching {name}.");
     }
