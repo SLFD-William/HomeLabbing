@@ -178,6 +178,7 @@ def main():
 
         if try_direct(text):
             last_activity = time.time()
+            time.sleep(0.8)  # let the room tail of the assistant's own voice die out
             while not q.empty():  # drop audio captured while the assistant was speaking
                 q.get()
             return

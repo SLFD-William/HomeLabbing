@@ -9,6 +9,14 @@ public sealed class VoiceSession
     public static readonly TimeSpan ListenWindow = TimeSpan.FromSeconds(12);
     public static readonly TimeSpan ChatWindow = TimeSpan.FromSeconds(30);
 
+    private static readonly System.Text.RegularExpressions.Regex Dismissal = new(
+        @"\b(dismissed?|stand down|that('s| is| will be) all|never ?mind)\b",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+    private static readonly System.Text.RegularExpressions.Regex SelfEcho = new(
+        @"^\W*(aye,? captain|aye,? aye|sorry,? captain|ay,? captain)\b",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
     private readonly CommandExecutor _executor;
     private readonly Action<string> _say;
     private readonly Func<DateTime> _now;
@@ -18,9 +26,36 @@ public sealed class VoiceSession
     public VoiceSession(CommandExecutor executor, Action<string> say, Func<DateTime>? now = null, IConversationModel? model = null)
     {
         _executor = executor;
-        _say = say;
+        _say = text =>
+        {
+            _spoken.Add(text);
+            if (_spoken.Count > 5)
+            {
+                _spoken.RemoveAt(0);
+            }
+
+            say(text);
+        };
         _now = now ?? (() => DateTime.UtcNow);
         _model = model;
+    }
+
+    private readonly List<string> _spoken = [];
+
+    private static string[] Words(string s) =>
+        System.Text.RegularExpressions.Regex.Matches(s.ToLowerInvariant(), "[a-z0-9']+").Select(m => m.Value).ToArray();
+
+    // True when most of what was heard is words Elmer itself just said.
+    private bool MatchesRecentSpeech(string transcript)
+    {
+        var heard = Words(transcript);
+        if (heard.Length < 3)
+        {
+            return false;
+        }
+
+        var said = new HashSet<string>(_spoken.SelectMany(Words));
+        return heard.Count(said.Contains) >= heard.Length * 0.7;
     }
 
     public bool IsListening => _listeningUntil is { } until && _now() < until;
@@ -31,7 +66,18 @@ public sealed class VoiceSession
         var wasListening = IsListening;
         _listeningUntil = null;
 
+        // Elmer's own speech can be picked up by the mic; never answer it.
+        if (wasListening && (SelfEcho.IsMatch(transcript) || MatchesRecentSpeech(transcript)))
+        {
+            return Listen();
+        }
+
         var parsed = CommandParser.Parse(transcript);
+        if (Dismissal.IsMatch(transcript) && (wasListening || parsed.Status != ParseStatus.NotAddressed))
+        {
+            return "HANDLED dismissed";
+        }
+
         if (parsed.Status == ParseStatus.NotAddressed && wasListening)
         {
             parsed = CommandParser.ParseCommand(transcript);

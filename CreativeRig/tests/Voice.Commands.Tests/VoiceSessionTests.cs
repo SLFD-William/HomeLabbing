@@ -27,6 +27,32 @@ public class VoiceSessionTests
     }
 
     [Fact]
+    public async Task Dismissed_ends_listening_silently()
+    {
+        var (session, said, _) = Create();
+        await session.HandleAsync("hey elmer");
+        said.Clear();
+
+        var reply = await session.HandleAsync("Dismissed.");
+
+        Assert.Equal("HANDLED dismissed", reply);
+        Assert.False(session.IsListening);
+        Assert.Empty(said);
+    }
+
+    [Fact]
+    public async Task Own_speech_while_listening_is_ignored()
+    {
+        var (session, said, _) = Create();
+        await session.HandleAsync("hey elmer");
+        said.Clear();
+
+        await session.HandleAsync("Aye Captain.");
+
+        Assert.Empty(said);
+    }
+
+    [Fact]
     public async Task WakeWordAndCommandInOneUtterance()
     {
         var (s, said, _) = Create();
