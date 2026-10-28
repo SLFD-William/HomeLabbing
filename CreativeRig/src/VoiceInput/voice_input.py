@@ -151,8 +151,9 @@ def main():
         print(f"GPU unavailable ({e}); using CPU", flush=True)
         model = WhisperModel(MODEL, device="cpu", compute_type="int8")
 
-    # Median of the first 1.5 s so speech during startup doesn't inflate the gate.
-    floor = max(0.003, float(np.median([np.sqrt((q.get()[:, CHANNEL] ** 2).mean()) for _ in range(15)])))
+    # Low percentile of the first 1.5 s so speech or a noisy start doesn't inflate the gate.
+    floor = max(0.003, float(np.percentile([np.sqrt((q.get()[:, CHANNEL] ** 2).mean()) for _ in range(15)], 20)))
+    floor = min(floor, 0.02)
     print(f"Noise floor {floor:.4f}. Say 'hey rig'.", flush=True)
     beep(880)
 
@@ -180,8 +181,13 @@ def main():
         segs, _ = model.transcribe(audio16, language="en", beam_size=1, vad_filter=True,
                                    condition_on_previous_text=False, no_speech_threshold=0.5,
                                    initial_prompt="Hey Elmer, start REAPER. Hey Elmer, set the tempo to 120 BPM.")
-        parts = [s for s in segs if s.avg_logprob > -1.0 and s.no_speech_prob < 0.6]
+        all_segs = list(segs)
+        parts = [s for s in all_segs if s.avg_logprob > -1.0 and s.no_speech_prob < 0.6]
         text = " ".join(s.text.strip() for s in parts).strip()
+        if not text:
+            dropped = " ".join(s.text.strip() for s in all_segs).strip()
+            print(f"dropped ({len(audio) / SAMPLE_RATE:.1f}s): {dropped!r}", flush=True)
+            return
         if re.fullmatch(r"(reaper|metronome|record|[\s,.])+", text.lower()):
             return  # Whisper parroting its prompt on unclear audio
         if text.lower().strip(" .,!?") in JUNK:
@@ -236,7 +242,7 @@ def main():
     while True:
         d = q.get()[:, CHANNEL]
         rms = float(np.sqrt((d ** 2).mean()))
-        loud = rms > max(floor * 3.0, 0.01)
+        loud = rms > min(max(floor * 3.0, 0.01), 0.04)
         if not in_speech:
             if loud:
                 in_speech, buf, speech_t, silence_t = True, list(preroll) + [d], 0.1, 0.0
