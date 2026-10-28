@@ -6,8 +6,8 @@ namespace Voice.Commands;
 /// </summary>
 public sealed class VoiceSession
 {
-    public static readonly TimeSpan ListenWindow = TimeSpan.FromSeconds(12);
-    public static readonly TimeSpan ChatWindow = TimeSpan.FromSeconds(30);
+    public static readonly TimeSpan ListenWindow =     TimeSpan.FromSeconds(25);
+        public static readonly TimeSpan ChatWindow = TimeSpan.FromSeconds(45);
 
     private static readonly System.Text.RegularExpressions.Regex Dismissal = new(
         @"\b(dismissed?|stand down|that('s| is| will be) all|never ?mind)\b",

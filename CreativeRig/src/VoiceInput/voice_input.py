@@ -50,7 +50,7 @@ DIRECT_EXE = os.environ.get("VOICE_DIRECT_EXE", os.path.join(
     "net10.0-windows", "Voice.Commands.exe"))
 _direct = None
 _direct_listening_until = 0.0
-DIRECT_LISTEN_SECONDS = 12.0
+DIRECT_LISTEN_SECONDS = 25.0
 ELMER_RE = re.compile(r"\b(elm[ae]r|elmore|ellmer|almer|el\s+(mer|more))\b", re.I)
 
 
@@ -68,7 +68,7 @@ def try_direct(text):
     _direct.stdin.flush()
     reply = _direct.stdout.readline().strip()
     print(f"direct: {reply}", flush=True)
-    _direct_listening_until = time.time() + (30.0 if reply.startswith("CHAT") else DIRECT_LISTEN_SECONDS) if (reply == "LISTENING" or reply.startswith("CHAT")) else 0.0
+    _direct_listening_until = time.time() + (45.0 if reply.startswith("CHAT") else DIRECT_LISTEN_SECONDS) if (reply == "LISTENING" or reply.startswith("CHAT")) else 0.0
     return reply != "PASS"
 
 
