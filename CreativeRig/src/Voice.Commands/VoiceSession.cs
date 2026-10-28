@@ -40,6 +40,7 @@ public sealed class VoiceSession
         _model = model;
     }
 
+    private readonly List<DateTime> _modelCalls = [];
     private readonly List<string> _spoken = [];
 
     private static string[] Words(string s) =>
@@ -64,12 +65,19 @@ public sealed class VoiceSession
     public async Task<string> HandleAsync(string transcript, CancellationToken ct = default)
     {
         var wasListening = IsListening;
+        var previousDeadline = _listeningUntil;
         _listeningUntil = null;
 
-        // Elmer's own speech can be picked up by the mic; never answer it.
-        if (wasListening && (SelfEcho.IsMatch(transcript) || MatchesRecentSpeech(transcript)))
+        // Elmer's own speech can be picked up by the mic; never answer it or extend the window.
+        if (SelfEcho.IsMatch(transcript) || MatchesRecentSpeech(transcript))
         {
-            return Listen();
+            if (wasListening)
+            {
+                _listeningUntil = previousDeadline;
+                return "LISTENING";
+            }
+
+            return "PASS";
         }
 
         var parsed = CommandParser.Parse(transcript);
@@ -130,6 +138,16 @@ public sealed class VoiceSession
     {
         // Drop the wake word (if any) so the model sees only what the Captain asked.
         var text = CommandParser.StripWakeWord(transcript);
+
+        // Backstop against runaway loops: no more than 6 model calls per minute.
+        var now = _now();
+        _modelCalls.RemoveAll(t => now - t > TimeSpan.FromMinutes(1));
+        if (_modelCalls.Count >= 6 || text.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length < 2)
+        {
+            return "PASS";
+        }
+
+        _modelCalls.Add(now);
         try
         {
             var reply = await _model!.RespondAsync(text, ct).ConfigureAwait(false);
