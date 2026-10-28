@@ -1,0 +1,13 @@
+bin/
+obj/
+publish/
+.vs/
+*.user
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Elmer runtime logs and local state
+src/VoiceInput/voice.log
+src/VoiceInput/voice.err

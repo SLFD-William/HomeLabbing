@@ -1,0 +1,18 @@
+# CreativeRig MCP servers. All speak MCP (JSON-RPC 2.0) over stdio.
+# Rebuild exes with: dotnet publish src\Mcp.<Name> -c Release -o publish\Mcp.<Name>
+harness:
+  mcp_servers:
+    - name: reaper
+      transport: stdio
+      command: C:\Users\willi\Documents\Repository\CreativeRig\publish\Mcp.Reaper\Mcp.Reaper.exe
+    - name: headrush
+      transport: stdio
+      command: C:\Users\willi\Documents\Repository\CreativeRig\publish\Mcp.Headrush\Mcp.Headrush.exe
+      env:
+        HEADRUSH_API: http://192.168.21.147/api/v1
+    - name: obs
+      transport: stdio
+      command: C:\Users\willi\Documents\Repository\CreativeRig\publish\Mcp.Obs\Mcp.Obs.exe
+    - name: capcut
+      transport: stdio
+      command: C:\Users\willi\Documents\Repository\CreativeRig\publish\Mcp.CapCut\Mcp.CapCut.exe
