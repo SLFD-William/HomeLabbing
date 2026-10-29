@@ -53,7 +53,7 @@ public class VoiceSessionTests
     }
 
     [Fact]
-    public async Task Unclear_speech_while_listening_asks_to_repeat()
+    public async Task Unclear_speech_while_listening_stays_silent()
     {
         var (session, said, _) = Create();
         await session.HandleAsync("hey elmer");
@@ -62,8 +62,7 @@ public class VoiceSessionTests
         var reply = await session.HandleAsync(VoiceSession.UnclearMarker);
 
         Assert.Equal("LISTENING", reply);
-        Assert.Single(said);
-        Assert.Contains("again", said[0]);
+        Assert.Empty(said);
     }
 
     [Fact]

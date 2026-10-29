@@ -20,7 +20,6 @@ public sealed class VoiceSession
     private readonly Func<DateTime> _now;
     private readonly IConversationModel? _model;
     private bool _awake;
-    private DateTime _lastUnclearPrompt = DateTime.MinValue;
 
     public VoiceSession(CommandExecutor executor, Action<string> say, Func<DateTime>? now = null, IConversationModel? model = null)
     {
@@ -67,17 +66,10 @@ public sealed class VoiceSession
     {
         var wasListening = _awake;
 
-        // The listener heard speech it couldn't transcribe while a command was expected.
+        // The listener heard speech it couldn't transcribe; just keep listening.
         if (transcript.Trim() == UnclearMarker)
         {
-            if (!wasListening || _now() - _lastUnclearPrompt < TimeSpan.FromSeconds(15))
-            {
-                return "PASS";
-            }
-
-            _lastUnclearPrompt = _now();
-            _say("Sorry Captain, I didn't catch that. Could you say it again?");
-            return "LISTENING";
+            return wasListening ? "LISTENING" : "PASS";
         }
 
         // Elmer's own speech can be picked up by the mic; never answer it.
@@ -152,7 +144,6 @@ public sealed class VoiceSession
         _modelCalls.RemoveAll(t => now - t > TimeSpan.FromMinutes(1));
         if (_modelCalls.Count >= 6 || text.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length < 2)
         {
-            _say("Sorry Captain, I didn't catch that. Could you say it again?");
             return Listen();
         }
 
@@ -162,7 +153,6 @@ public sealed class VoiceSession
             var reply = await _model!.RespondAsync(text, ct).ConfigureAwait(false);
             if (string.IsNullOrWhiteSpace(reply))
             {
-                _say("Sorry Captain, I didn't understand that.");
                 return Listen();
             }
 
