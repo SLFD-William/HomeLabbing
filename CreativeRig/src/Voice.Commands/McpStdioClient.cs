@@ -116,6 +116,24 @@ public sealed class McpStdioClient : IAsyncDisposable
         }
     }
 
+    /// <summary>Returns the server's tool definitions (name, description, inputSchema).</summary>
+    public async Task<JsonArray> ListToolsAsync(CancellationToken ct = default)
+    {
+        await _gate.WaitAsync(ct).ConfigureAwait(false);
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        cts.CancelAfter(DefaultTimeout);
+        try
+        {
+            await EnsureStartedAsync(cts.Token).ConfigureAwait(false);
+            var result = await RequestAsync("tools/list", new JsonObject(), cts.Token).ConfigureAwait(false);
+            return result["tools"]?.AsArray() ?? [];
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
     public async Task<JsonNode?> CallJsonAsync(string tool, JsonObject? arguments = null, TimeSpan? timeout = null, CancellationToken ct = default)
     {
         var text = await CallToolAsync(tool, arguments, timeout, ct).ConfigureAwait(false);
@@ -184,6 +202,8 @@ public sealed class McpHub : IAsyncDisposable
     public McpStdioClient Headrush => Get("RigHeadrush");
 
     public McpStdioClient CapCut => Get("RigCapCut");
+
+    public McpStdioClient ByName(string server) => Get(server);
 
     private McpStdioClient Get(string server)
     {

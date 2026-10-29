@@ -22,7 +22,16 @@ public static class ConversationTools
         then briefly say what happened. Track numbers start at 1.
         Render, loading a HeadRush rig, and starting or stopping a stream are disruptive: first ask the Captain to confirm,
         and only pass confirmed=true after they clearly say yes in this conversation.
+        Besides the simple tools you also have the raw tools of each studio server, named mcp_<server>_<tool>.
+        For anything the simple tools can't do, use them. In REAPER, mcp_reaper_list_reascript_functions finds ReaScript
+        functions and mcp_reaper_call_reascript_function calls one (ReaScript track and item indexes start at 0, the Captain's
+        track numbers start at 1). Work step by step, check results, and only report success when the tool calls succeeded.
+        Deleting, saving over, or closing things is risky: ask first, and pass confirmed=true only after a clear yes.
         If a tool fails, say so plainly. If you can't do something with your tools, say that instead of guessing.
+        HeadRush tempo is the object /Evil/Engine/Tempo (property Tempo), normalized 0..1 where BPM = 30 + value * 210
+        (range 30-240). To set it, call mcp_headrush_put_object_properties with that path and {"Tempo": (bpm-30)/210},
+        then read it back with mcp_headrush_get_object_properties to verify.
+        If the Captain's request already says to go ahead or confirms, treat that as the confirmation.
         """;
 
     private const string NeedConfirm = "Not done. Ask the Captain to confirm first, then call again with confirmed=true.";

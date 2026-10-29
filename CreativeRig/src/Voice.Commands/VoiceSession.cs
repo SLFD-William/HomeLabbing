@@ -61,6 +61,9 @@ public sealed class VoiceSession
 
     public bool IsListening => _awake;
 
+    private static bool FastCommands =>
+        string.Equals(Environment.GetEnvironmentVariable("ELMER_FAST_COMMANDS"), "on", StringComparison.OrdinalIgnoreCase);
+
     /// <returns>"PASS", "LISTENING", or "HANDLED ..." for a line-based host to relay.</returns>
     public async Task<string> HandleAsync(string transcript, CancellationToken ct = default)
     {
@@ -93,6 +96,13 @@ public sealed class VoiceSession
         {
             _awake = true;
             _say("Aye Captain");
+        }
+
+        // With a model, the AI handles every request through the tools; the parser is only a fast path on request.
+        if (_model is not null && !FastCommands
+            && parsed.Status is ParseStatus.Unrecognized or ParseStatus.Invalid or ParseStatus.Command)
+        {
+            return await ConverseAsync(transcript, wasListening, ct).ConfigureAwait(false);
         }
 
         switch (parsed.Status)

@@ -24,7 +24,7 @@ var executor = new CommandExecutor(hub);
 // ELMER_CHAT=off disables conversation; ELMER_MODEL picks the Copilot model (default: Copilot's own).
 IConversationModel? chat = hub is null || string.Equals(Environment.GetEnvironmentVariable("ELMER_CHAT"), "off", StringComparison.OrdinalIgnoreCase)
     ? null
-    : new CopilotConversationModel(executor, Environment.GetEnvironmentVariable("ELMER_MODEL"));
+    : new CopilotConversationModel(executor, hub, Environment.GetEnvironmentVariable("ELMER_MODEL"));
 await using var chatLifetime = chat;
 var session = new VoiceSession(executor, text => voice?.Say(text), model: chat);
 
@@ -33,6 +33,11 @@ if (sayIndex >= 0 && sayIndex + 1 < args.Length)
     Console.WriteLine(await session.HandleAsync(args[sayIndex + 1]));
     WaitForSpeech();
     return;
+}
+
+if (chat is CopilotConversationModel copilot)
+{
+    _ = copilot.WarmUpAsync();
 }
 
 string? line;

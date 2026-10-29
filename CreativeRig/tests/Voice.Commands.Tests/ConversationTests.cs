@@ -50,13 +50,13 @@ public class ConversationTests
     }
 
     [Fact]
-    public async Task RecognizedCommandsSkipTheModel()
+    public async Task RequestsGoToTheModelByDefault()
     {
-        var model = new FakeModel("unused");
+        var model = new FakeModel("done");
         var session = new VoiceSession(new CommandExecutor(null), _ => { }, model: model);
 
         await session.HandleAsync("Hey Elmer, set the tempo to 100");
-        Assert.Empty(model.Asked);
+        Assert.Single(model.Asked);
     }
 
     [Theory]
