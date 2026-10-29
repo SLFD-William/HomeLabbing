@@ -50,17 +50,15 @@ DIRECT_EXE = os.environ.get("VOICE_DIRECT_EXE", os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "..", "Voice.Commands", "bin", "Debug",
     "net10.0-windows", "Voice.Commands.exe"))
 _direct = None
-_direct_listening_until = 0.0
-DIRECT_LISTEN_SECONDS = 25.0
+_direct_awake = False
 ELMER_RE = re.compile(r"\b(elm[ae]r|elmore|ellmer|almer|el\s+(mer|more))\b", re.I)
 
 
 def try_direct(text):
     """Send a transcript to the C# direct-command session ("Hey Elmer ..."). True if it consumed it."""
-    global _direct, _direct_listening_until
+    global _direct, _direct_awake
     import subprocess
-    listening = time.time() < _direct_listening_until
-    if not os.path.exists(DIRECT_EXE) or not (listening or ELMER_RE.search(text)):
+    if not os.path.exists(DIRECT_EXE) or not (_direct_awake or ELMER_RE.search(text)):
         return False
     if _direct is None or _direct.poll() is not None:
         _direct = subprocess.Popen([DIRECT_EXE], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
@@ -77,7 +75,10 @@ def try_direct(text):
             reply = line
             break
     print(f"direct: {reply}", flush=True)
-    _direct_listening_until = time.time() + (45.0 if reply.startswith("CHAT") else DIRECT_LISTEN_SECONDS) if (reply == "LISTENING" or reply.startswith("CHAT")) else 0.0
+    if reply == "HANDLED dismissed":
+        _direct_awake = False
+    elif reply != "PASS" and reply:
+        _direct_awake = True  # stays interactive until "Elmer, dismissed"
     return reply != "PASS"
 
 
@@ -180,14 +181,14 @@ def main():
         audio16 = audio[: len(audio) // 3 * 3].reshape(-1, 3).mean(axis=1).astype(np.float32)
         segs, _ = model.transcribe(audio16, language="en", beam_size=1, vad_filter=True,
                                    condition_on_previous_text=False, no_speech_threshold=0.5,
-                                   initial_prompt="Hey Elmer, close REAPER. Hey Elmer, open OBS. Start REAPER. Close OBS. Launch the studio. Set the tempo to 120 BPM.")
+                                   initial_prompt="Hey Elmer, close REAPER. Hey Elmer, open OBS. Start REAPER. Elmer, dismissed. Launch the studio. Set the tempo to 120 BPM.")
         all_segs = list(segs)
         parts = [s for s in all_segs if s.avg_logprob > -1.0 and s.no_speech_prob < 0.6]
         text = " ".join(s.text.strip() for s in parts).strip()
         if not text:
             dropped = " ".join(s.text.strip() for s in all_segs).strip()
             print(f"dropped ({len(audio) / SAMPLE_RATE:.1f}s): {dropped!r}", flush=True)
-            if time.time() < _direct_listening_until:
+            if _direct_awake:
                 try_direct("<unclear>")
             return
         if re.fullmatch(r"(reaper|metronome|record|[\s,.])+", text.lower()):

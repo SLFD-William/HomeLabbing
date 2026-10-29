@@ -95,10 +95,18 @@ public sealed class SpeechOutput : IDisposable
         return proc;
     }
 
+    // Punctuation gives the synthesizer a natural cadence for the stock phrases.
+    private static string Pronounce(string text) => text switch
+    {
+        "Aye Aye" => "Aye, aye!",
+        "Aye Captain" => "Aye, Captain!",
+        _ => text,
+    };
+
     private string Render(string text)
     {
         var name = Convert.ToHexString(System.Security.Cryptography.SHA1.HashData(Encoding.UTF8.GetBytes(
-            text + Environment.GetEnvironmentVariable("VOICE_NAME")))) + ".wav";
+            "v2" + text + Environment.GetEnvironmentVariable("VOICE_NAME")))) + ".wav";
         var path = Path.Combine(_cacheDir, name);
         if (File.Exists(path))
         {
@@ -111,7 +119,7 @@ public sealed class SpeechOutput : IDisposable
         }
 
         var tmp = path + ".tmp";
-        _helper.StandardInput.WriteLine($"{tmp}\t{text}");
+        _helper.StandardInput.WriteLine($"{tmp}\t{Pronounce(text)}");
         _helper.StandardInput.Flush();
         var reply = _helper.StandardOutput.ReadLine();
         if (reply != "OK")
@@ -142,8 +150,14 @@ public sealed class SpeechOutput : IDisposable
             try
             {
                 using var reader = new AudioFileReader(Render(text));
-                using var output = new WaveOutEvent { DeviceNumber = _deviceNumber };
-                output.Init(reader);
+                // Lead-in and lead-out silence so the device start-up and close don't clip short phrases.
+                var padded = new NAudio.Wave.SampleProviders.OffsetSampleProvider(reader)
+                {
+                    DelayBy = TimeSpan.FromMilliseconds(250),
+                    LeadOut = TimeSpan.FromMilliseconds(500),
+                };
+                using var output = new WaveOutEvent { DeviceNumber = _deviceNumber, DesiredLatency = 150 };
+                output.Init(padded);
                 output.Play();
                 while (output.PlaybackState == PlaybackState.Playing)
                 {

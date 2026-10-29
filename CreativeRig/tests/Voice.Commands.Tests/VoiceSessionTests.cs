@@ -23,7 +23,7 @@ public class VoiceSessionTests
 
         Assert.Equal("HANDLED [dry-run] SetTempo { Bpm = 171 }", await s.HandleAsync("Set the tempo to 171 beats per minute."));
         Assert.Equal(["Aye Captain", "Aye Aye"], said);
-        Assert.False(s.IsListening);
+        Assert.True(s.IsListening);
     }
 
     [Fact]
@@ -93,14 +93,20 @@ public class VoiceSessionTests
     }
 
     [Fact]
-    public async Task ListeningWindowExpires()
+    public async Task StaysAwakeUntilDismissed()
     {
         var (s, said, advance) = Create();
         await s.HandleAsync("Hey Elmer");
-        advance(VoiceSession.ListenWindow + TimeSpan.FromSeconds(1));
+        advance(TimeSpan.FromMinutes(10));
 
+        Assert.StartsWith("HANDLED [dry-run]", await s.HandleAsync("set the tempo to 171"));
+        Assert.StartsWith("HANDLED [dry-run]", await s.HandleAsync("set the tempo to 90"));
+        Assert.True(s.IsListening);
+
+        Assert.Equal("HANDLED dismissed", await s.HandleAsync("Elmer, dismissed."));
+        Assert.False(s.IsListening);
         Assert.Equal("PASS", await s.HandleAsync("set the tempo to 171"));
-        Assert.Equal(["Aye Captain"], said);
+        Assert.Equal(["Aye Captain", "Aye Aye", "Aye Aye"], said);
     }
 
     [Fact]

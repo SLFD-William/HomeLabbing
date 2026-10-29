@@ -1,16 +1,14 @@
 namespace Voice.Commands;
 
 /// <summary>
-/// Conversation flow: wake word -> "Aye Captain" and listen; command understood -> "Aye Aye" and execute.
+/// Conversation flow: "Hey Elmer" wakes the assistant ("Aye Captain") and it stays awake and interactive
+/// until "Elmer, dismissed". Understood commands are confirmed with "Aye Aye" and executed.
 /// A wake word and command in one utterance does both in order.
 /// </summary>
 public sealed class VoiceSession
 {
-    public static readonly TimeSpan ListenWindow =     TimeSpan.FromSeconds(25);
-        public static readonly TimeSpan ChatWindow = TimeSpan.FromSeconds(45);
-
     private static readonly System.Text.RegularExpressions.Regex Dismissal = new(
-        @"\b(dismissed?|stand down|that('s| is| will be) all|never ?mind)\b",
+        @"\b(dismissed?|stand down)\b",
         System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
     private static readonly System.Text.RegularExpressions.Regex SelfEcho = new(
@@ -21,7 +19,8 @@ public sealed class VoiceSession
     private readonly Action<string> _say;
     private readonly Func<DateTime> _now;
     private readonly IConversationModel? _model;
-    private DateTime? _listeningUntil;
+    private bool _awake;
+    private DateTime _lastUnclearPrompt = DateTime.MinValue;
 
     public VoiceSession(CommandExecutor executor, Action<string> say, Func<DateTime>? now = null, IConversationModel? model = null)
     {
@@ -61,42 +60,36 @@ public sealed class VoiceSession
         return heard.Count(said.Contains) >= heard.Length * 0.8;
     }
 
-    public bool IsListening => _listeningUntil is { } until && _now() < until;
+    public bool IsListening => _awake;
 
     /// <returns>"PASS", "LISTENING", or "HANDLED ..." for a line-based host to relay.</returns>
     public async Task<string> HandleAsync(string transcript, CancellationToken ct = default)
     {
-        var wasListening = IsListening;
-        var previousDeadline = _listeningUntil;
-        _listeningUntil = null;
+        var wasListening = _awake;
 
         // The listener heard speech it couldn't transcribe while a command was expected.
         if (transcript.Trim() == UnclearMarker)
         {
-            if (!wasListening)
+            if (!wasListening || _now() - _lastUnclearPrompt < TimeSpan.FromSeconds(15))
             {
                 return "PASS";
             }
 
+            _lastUnclearPrompt = _now();
             _say("Sorry Captain, I didn't catch that. Could you say it again?");
-            return Listen();
+            return "LISTENING";
         }
 
-        // Elmer's own speech can be picked up by the mic; never answer it or extend the window.
+        // Elmer's own speech can be picked up by the mic; never answer it.
         if (SelfEcho.IsMatch(transcript) || MatchesRecentSpeech(transcript))
         {
-            if (wasListening)
-            {
-                _listeningUntil = previousDeadline;
-                return "LISTENING";
-            }
-
-            return "PASS";
+            return wasListening ? "LISTENING" : "PASS";
         }
 
         var parsed = CommandParser.Parse(transcript);
         if (Dismissal.IsMatch(transcript) && (wasListening || parsed.Status != ParseStatus.NotAddressed))
         {
+            _awake = false;
             return "HANDLED dismissed";
         }
 
@@ -106,6 +99,7 @@ public sealed class VoiceSession
         }
         else if (parsed.Status != ParseStatus.NotAddressed)
         {
+            _awake = true;
             _say("Aye Captain");
         }
 
@@ -173,20 +167,18 @@ public sealed class VoiceSession
             }
 
             _say(reply);
-            Listen(ChatWindow);
             return "CHAT " + reply;
         }
         catch (Exception ex)
         {
             _say("Sorry Captain, I couldn't think of an answer.");
-            Listen(ChatWindow);
             return $"CHAT error: {ex.Message}";
         }
     }
 
-    private string Listen(TimeSpan? window = null)
+    private string Listen()
     {
-        _listeningUntil = _now() + (window ?? ListenWindow);
+        _awake = true;
         return "LISTENING";
     }
 }
