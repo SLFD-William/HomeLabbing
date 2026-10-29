@@ -5,6 +5,9 @@ namespace Voice.Commands;
 /// <summary>A language model that answers spoken requests, optionally by calling tools.</summary>
 public interface IConversationModel : IAsyncDisposable
 {
+    /// <summary>Raised when the model starts a real action (not a read-only query), so the host can confirm aloud.</summary>
+    Action? ActionStarted { get; set; }
+
     Task<string> RespondAsync(string userText, CancellationToken ct = default);
 }
 
@@ -24,12 +27,17 @@ public static class ConversationTools
 
     private const string NeedConfirm = "Not done. Ask the Captain to confirm first, then call again with confirmed=true.";
 
-    public static IReadOnlyList<AIFunction> Create(CommandExecutor exec)
+    public static IReadOnlyList<AIFunction> Create(CommandExecutor exec, Func<Action?>? actionStarted = null)
     {
         async Task<string> Run(VoiceCommand c)
         {
             try
             {
+                if (c is not (GetTempo or HeadrushWhichRig or AnalyzeAudio))
+                {
+                    actionStarted?.Invoke()?.Invoke();
+                }
+
                 return (await exec.ExecuteAsync(c).ConfigureAwait(false)).Message;
             }
             catch (Exception ex)

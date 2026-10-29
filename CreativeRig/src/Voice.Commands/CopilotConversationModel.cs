@@ -14,6 +14,8 @@ public sealed class CopilotConversationModel : IConversationModel
     private CopilotClient? _client;
     private CopilotSession? _session;
 
+    public Action? ActionStarted { get; set; }
+
     public CopilotConversationModel(CommandExecutor executor, string? model)
     {
         _executor = executor;
@@ -30,7 +32,7 @@ public sealed class CopilotConversationModel : IConversationModel
         _client = new CopilotClient(new CopilotClientOptions());
         await _client.StartAsync(ct).ConfigureAwait(false);
 
-        var tools = ConversationTools.Create(_executor);
+        var tools = ConversationTools.Create(_executor, () => ActionStarted);
         _session = await _client.CreateSessionAsync(new SessionConfig
         {
             Model = _model,

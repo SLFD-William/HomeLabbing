@@ -5,17 +5,35 @@ namespace Voice.Commands.Tests;
 
 public class ConversationTests
 {
-    private sealed class FakeModel(string reply) : IConversationModel
+    private sealed class FakeModel(string reply, bool acts = false) : IConversationModel
     {
         public List<string> Asked { get; } = [];
+
+        public Action? ActionStarted { get; set; }
 
         public Task<string> RespondAsync(string userText, CancellationToken ct = default)
         {
             Asked.Add(userText);
+            if (acts)
+            {
+                ActionStarted?.Invoke();
+                ActionStarted?.Invoke();
+            }
+
             return Task.FromResult(reply);
         }
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+
+    [Fact]
+    public async Task ModelActionsAreConfirmedWithAyeAyeOnceBeforeTheReply()
+    {
+        var said = new List<string>();
+        var session = new VoiceSession(new CommandExecutor(null), said.Add, model: new FakeModel("Done.", acts: true));
+
+        await session.HandleAsync("Hey Elmer, get me ready to track some guitar please");
+        Assert.Equal(["Aye Captain", "Aye Aye", "Done."], said);
     }
 
     [Fact]

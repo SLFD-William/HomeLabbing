@@ -12,7 +12,7 @@ public sealed class VoiceSession
         System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
     private static readonly System.Text.RegularExpressions.Regex SelfEcho = new(
-        @"^\W*(aye,? captain|aye,? aye|sorry,? captain|ay,? captain)\b",
+        @"^\W*(aye,? captain|aye,? aye|sorry,? captain|ay,? captain|pardon)\b",
         System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
     private readonly CommandExecutor _executor;
@@ -104,7 +104,7 @@ public sealed class VoiceSession
             case ParseStatus.Unrecognized when _model is not null:
                 return await ConverseAsync(transcript, wasListening, ct).ConfigureAwait(false);
             case ParseStatus.Unrecognized:
-                _say("Sorry Captain, I didn't understand that.");
+                _say("Pardon?");
                 return Listen();
             case ParseStatus.Invalid:
                 _say($"Sorry Captain. {parsed.Message}");
@@ -142,17 +142,33 @@ public sealed class VoiceSession
         // Backstop against runaway loops: no more than 6 model calls per minute.
         var now = _now();
         _modelCalls.RemoveAll(t => now - t > TimeSpan.FromMinutes(1));
-        if (_modelCalls.Count >= 6 || text.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length < 2)
+        if (_modelCalls.Count >= 6)
         {
             return Listen();
         }
 
+        if (text.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length < 2)
+        {
+            _say("Pardon?");
+            return Listen();
+        }
+
         _modelCalls.Add(now);
+        var confirmed = false;
+        _model!.ActionStarted = () =>
+        {
+            if (!confirmed)
+            {
+                confirmed = true;
+                _say("Aye Aye");
+            }
+        };
         try
         {
             var reply = await _model!.RespondAsync(text, ct).ConfigureAwait(false);
             if (string.IsNullOrWhiteSpace(reply))
             {
+                _say("Pardon?");
                 return Listen();
             }
 
