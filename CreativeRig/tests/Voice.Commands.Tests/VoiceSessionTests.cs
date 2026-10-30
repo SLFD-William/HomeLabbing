@@ -109,6 +109,16 @@ public class VoiceSessionTests
     }
 
     [Fact]
+    public async Task ShutDownExitsOnlyWhenAddressed()
+    {
+        var (s, said, _) = Create();
+        Assert.Equal("PASS", await s.HandleAsync("shut down"));
+        Assert.Equal("HANDLED shutdown", await s.HandleAsync("Hey Elmer, shut down"));
+        Assert.False(s.IsListening);
+        Assert.Contains("Aye Captain, shutting down.", said);
+    }
+
+    [Fact]
     public async Task MisheardCommandKeepsListening()
     {
         var (s, said, _) = Create();

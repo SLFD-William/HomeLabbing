@@ -21,6 +21,8 @@ import time
 import queue
 import winsound
 
+import overlay
+
 import numpy as np
 import sounddevice as sd
 
@@ -65,6 +67,7 @@ def try_direct(text):
                                    text=True, bufsize=1)
     _direct.stdin.write(text.replace("\n", " ") + "\n")
     _direct.stdin.flush()
+    overlay.set_state("working")
     reply = ""
     while True:  # launched apps can inherit our stdout and print noise; only accept protocol lines
         line = _direct.stdout.readline()
@@ -77,8 +80,17 @@ def try_direct(text):
     print(f"direct: {reply}", flush=True)
     if reply == "HANDLED dismissed":
         _direct_awake = False
+    elif reply == "HANDLED shutdown":
+        print("shutdown requested", flush=True)
+        try:
+            _direct.stdin.close()
+            _direct.wait(timeout=5)  # lets the C# side finish speaking
+        except Exception:
+            pass
+        os._exit(0)
     elif reply != "PASS" and reply:
         _direct_awake = True  # stays interactive until "Elmer, dismissed"
+    overlay.set_state("listening" if _direct_awake else "sleeping")
     return reply != "PASS"
 
 
@@ -124,6 +136,7 @@ def focus_copilot():
 
 
 def main():
+    overlay.start()
     probe = "--probe" in sys.argv
     test = "--test" in sys.argv
     idx, dev = find_device()
@@ -178,6 +191,7 @@ def main():
 
     def handle(audio):
         nonlocal active, last_activity, typed_len
+        overlay.set_state("transcribing")
         audio16 = audio[: len(audio) // 3 * 3].reshape(-1, 3).mean(axis=1).astype(np.float32)
         segs, _ = model.transcribe(audio16, language="en", beam_size=1, vad_filter=True,
                                    condition_on_previous_text=False, no_speech_threshold=0.5,
@@ -242,6 +256,7 @@ def main():
             beep(1500, 150)
 
     print("Listening...", flush=True)
+    overlay.set_state("sleeping")
     while True:
         d = q.get()[:, CHANNEL]
         rms = float(np.sqrt((d ** 2).mean()))
@@ -249,6 +264,7 @@ def main():
         if not in_speech:
             if loud:
                 in_speech, buf, speech_t, silence_t = True, list(preroll) + [d], 0.1, 0.0
+                overlay.set_state("hearing")
             else:
                 floor = 0.98 * floor + 0.02 * rms  # follow slow music/room level changes
             preroll.append(d)
@@ -265,6 +281,7 @@ def main():
                         print(f"error: {e}", flush=True)
                     while q.qsize() > 50:  # drop backlog accumulated while transcribing
                         q.get()
+                overlay.set_state("listening" if _direct_awake or active else "sleeping")
         if active and not in_speech and time.time() - last_activity > IDLE_SECONDS:
             active = False
             beep(500, 200)

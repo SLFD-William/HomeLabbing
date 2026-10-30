@@ -11,6 +11,10 @@ public sealed class VoiceSession
         @"\b(dismissed?|stand down)\b",
         System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
+    private static readonly System.Text.RegularExpressions.Regex Shutdown = new(
+        @"^\W*(shut ?down|power down|go offline|quit)\W*(elmer|yourself|assistant|completely|entirely)?\W*$",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
     private static readonly System.Text.RegularExpressions.Regex SelfEcho = new(
         @"^\W*(aye,? captain|aye,? aye|sorry,? captain|ay,? captain|pardon)\b",
         System.Text.RegularExpressions.RegexOptions.IgnoreCase);
@@ -86,6 +90,15 @@ public sealed class VoiceSession
         {
             _awake = false;
             return "HANDLED dismissed";
+        }
+
+        // A whole-utterance "shut down" only counts when Elmer is awake or addressed by name.
+        if ((wasListening || parsed.Status != ParseStatus.NotAddressed)
+            && Shutdown.IsMatch(CommandParser.StripWakeWord(transcript)))
+        {
+            _awake = false;
+            _say("Aye Captain, shutting down.");
+            return "HANDLED shutdown";
         }
 
         if (parsed.Status == ParseStatus.NotAddressed && wasListening)
